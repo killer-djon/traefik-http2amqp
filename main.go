@@ -8,33 +8,27 @@ import (
 
 // Config the plugin configuration.
 type Config struct {
-	Headers map[string]string `yaml:"headers"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
-	return &Config{
-		Headers: nil,
-	}
+	return &Config{}
 }
 
 type Http2Amqp struct {
-	next    http.Handler
-	name    string
-	headers map[string]string
+	next http.Handler
+	name string
 }
 
 // New created a new GeoBlock plugin.
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	return &Http2Amqp{
-		next:    next,
-		name:    name,
-		headers: nil,
+		next: next,
+		name: name,
 	}, nil
 }
 
 // ServeHTTP method to skip at next request step
 func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	h.headers["auth"] = request.Header.Get("Authorization")
-	log.Println("[AFS] Debug log for plugin with headers", h)
+	log.Println("[AFS] Debug log for plugin with headers")
 }
