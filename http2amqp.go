@@ -44,10 +44,9 @@ func CreateConfig() *Config {
 }
 
 type Http2Amqp struct {
-	next       http.Handler
-	name       string
-	config     *Config
-	connection *rmq.Connection
+	next   http.Handler
+	name   string
+	config *Config
 }
 
 // New created a new GeoBlock plugin.
@@ -63,22 +62,10 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if config.HeaderQueueName == "" || config.HeaderExchangeName == "" {
 		return nil, fmt.Errorf("[Http2Amqp] you must set queueName and exchangeName to publish message into")
 	}
-
-	connection, err := rmq.DialConfig(
-		fmt.Sprintf("amqp://%s:%s@%s:%d%s", config.Username, config.Password, config.Host, config.Port, config.Vhost),
-		rmq.Config{
-			Heartbeat: 30 * time.Second,
-		})
-
-	if err != nil {
-		return nil, fmt.Errorf("[Http2Amqp] connection error try to check you connection")
-	}
-
 	return &Http2Amqp{
-		next:       next,
-		name:       name,
-		config:     config,
-		connection: connection,
+		next:   next,
+		name:   name,
+		config: config,
 	}, nil
 }
 
@@ -86,6 +73,18 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == http.MethodPost {
 		if request.Header.Get(h.config.HeaderExchangeName) != "" && request.Header.Get(h.config.HeaderQueueName) != "" {
+			connection, err := rmq.DialConfig(
+				fmt.Sprintf("amqp://%s:%s@%s:%d%s", h.config.Username, h.config.Password, h.config.Host, h.config.Port, h.config.Vhost),
+				rmq.Config{
+					Heartbeat: 30 * time.Second,
+				})
+
+			if err != nil {
+				fmt.Printf("[Http2Amqp] connection error try to check you connection")
+				return
+			}
+
+			defer connection.Close()
 			queueName := request.Header.Get(h.config.HeaderQueueName)
 			exchangeName := request.Header.Get(h.config.HeaderExchangeName)
 
@@ -94,14 +93,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 				exchangeType = EXCHANGE_TYPE
 			}
 
-			body, err := io.ReadAll(request.Body)
-			if err != nil {
-				writer.WriteHeader(400)
-				writer.Write([]byte("Bad body request to transport amqp"))
-				return
-			}
-
-			channel, err := h.connection.Channel()
+			channel, err := connection.Channel()
 			if err != nil {
 				fmt.Println("[Http2Amqp] error occurred to get channel from connection", err)
 
@@ -112,6 +104,13 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 
 			defer channel.Close()
 
+			body, err := io.ReadAll(request.Body)
+			if err != nil {
+				writer.WriteHeader(400)
+				writer.Write([]byte("Bad body request to transport amqp"))
+				return
+			}
+			
 			err = channel.ExchangeDeclare(
 				exchangeName,
 				exchangeType,
