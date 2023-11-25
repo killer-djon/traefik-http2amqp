@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	uuid "github.com/satori/go.uuid"
-	"github.com/wagslane/go-rabbitmq"
+	rmq "github.com/wagslane/go-rabbitmq"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -30,19 +29,21 @@ type Config struct {
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		Host:     HOST,
-		Port:     PORT,
-		Vhost:    VHOST,
-		Username: "",
-		Password: "",
+		Host:               HOST,
+		Port:               PORT,
+		Vhost:              VHOST,
+		Username:           "",
+		Password:           "",
+		HeaderExchangeName: "",
+		HeaderQueueName:    "",
 	}
 }
 
 type Http2Amqp struct {
-	next      http.Handler
-	name      string
-	config    *Config
-	publisher *rabbitmq.Publisher
+	next       http.Handler
+	name       string
+	config     *Config
+	connection *rmq.Conn
 }
 
 // New created a new GeoBlock plugin.
@@ -59,20 +60,10 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		return nil, fmt.Errorf("[Http2Amqp] you must set queueName and exchangeName to publish message into")
 	}
 
-	conn, err := rabbitmq.NewConn(
+	conn, err := rmq.NewConn(
 		fmt.Sprintf("amqp://%s:%s@%s:%d%s", config.Username, config.Password, config.Host, config.Port, config.Vhost),
-		rabbitmq.WithConnectionOptionsLogging,
+		rmq.WithConnectionOptionsLogging,
 	)
-
-	publisher, err := rabbitmq.NewPublisher(
-		conn,
-		rabbitmq.WithPublisherOptionsLogging,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println("[Http2Amqp] make new publisher instance")
 
 	defer conn.Close()
 	if err != nil {
@@ -80,10 +71,10 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	}
 
 	return &Http2Amqp{
-		next:      next,
-		name:      name,
-		config:    config,
-		publisher: publisher,
+		next:       next,
+		name:       name,
+		config:     config,
+		connection: conn,
 	}, nil
 }
 
@@ -93,25 +84,44 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 		if request.Header.Get(h.config.HeaderExchangeName) != "" && request.Header.Get(h.config.HeaderQueueName) != "" {
 			body, err := io.ReadAll(request.Body)
 			if err != nil {
-				writer.Write([]byte("Bad body request"))
+				writer.WriteHeader(400)
+				writer.Write([]byte("Bad body request to trasport amqp"))
 				return
 			}
 
+			publisher, err := rmq.NewPublisher(
+				h.connection,
+				rmq.WithPublisherOptionsLogging,
+			)
+
+			if err != nil {
+				fmt.Println("[Http2Amqp] error occurred to establish connection to amqp")
+				writer.WriteHeader(400)
+				writer.Write([]byte("[Http2Amqp] error occurred to establish connection to amqp"))
+				return
+			}
+			fmt.Println("[Http2Amqp] make new publisher instance")
+
+			defer publisher.Close()
 			fmt.Println("[Http2Amqp] published body to exchange", string(body))
-			err = h.publisher.Publish(
+
+			err = publisher.Publish(
 				body,
 				[]string{h.config.HeaderQueueName},
-				rabbitmq.WithPublishOptionsContentType("application/json"),
-				rabbitmq.WithPublishOptionsExchange(h.config.HeaderExchangeName),
-				rabbitmq.WithPublishOptionsCorrelationID(uuid.NewV4().String()),
-				rabbitmq.WithPublishOptionsPersistentDelivery,
+				rmq.WithPublishOptionsContentType("application/json"),
+				rmq.WithPublishOptionsExchange(h.config.HeaderExchangeName),
+				rmq.WithPublishOptionsCorrelationID(uuid.NewV4().String()),
+				rmq.WithPublishOptionsPersistentDelivery,
 				/*rabbitmq.WithPublishOptionsHeaders(rabbitmq.Table{
 
 				})*/
 			)
 
 			if err != nil {
-				log.Println(err)
+				fmt.Println("[Http2Amqp] error publisher", err)
+				writer.WriteHeader(400)
+				writer.Write([]byte("[Http2Amqp] error publisher"))
+				return
 			}
 
 			fmt.Println("[Http2Amqp] body was published")
