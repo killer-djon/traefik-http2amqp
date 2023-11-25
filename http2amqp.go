@@ -88,6 +88,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 		if request.Header.Get(h.config.HeaderExchangeName) != "" && request.Header.Get(h.config.HeaderQueueName) != "" {
 			queueName := request.Header.Get(h.config.HeaderQueueName)
 			exchangeName := request.Header.Get(h.config.HeaderExchangeName)
+
 			exchangeType := request.Header.Get(h.config.HeaderExchangeType)
 			if exchangeType == "" {
 				exchangeType = EXCHANGE_TYPE
