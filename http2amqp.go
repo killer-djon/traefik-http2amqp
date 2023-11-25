@@ -17,13 +17,13 @@ const (
 
 // Config the plugin configuration.
 type Config struct {
-	Host               string `yaml:"host" json:"host"`
-	Port               int    `yaml:"port" json:"port"`
-	Vhost              string `yaml:"vhost" json:"vhost"`
-	Username           string `json:"username" yaml:"username"`
-	Password           string `yaml:"password" json:"password"`
-	HeaderExchangeName string `yaml:"headerExchangeName" json:"headerExchangeName"`
-	HeaderQueueName    string `yaml:"headerQueueName" json:"headerQueueName"`
+	Host               string `yaml:"host,omitempty" json:"host,omitempty" toml:"host,omitempty"`
+	Port               int    `yaml:"port,omitempty" json:"port,omitempty" toml:"port,omitempty"`
+	Vhost              string `yaml:"vhost,omitempty" json:"vhost,omitempty" toml:"vhost,omitempty"`
+	Username           string `json:"username,omitempty" yaml:"username,omitempty" toml:"username,omitempty"`
+	Password           string `yaml:"password,omitempty" json:"password,omitempty" toml:"password,omitempty"`
+	HeaderExchangeName string `yaml:"headerExchangeName,omitempty" json:"headerExchangeName,omitempty" toml:"headerExchangeName,omitempty"`
+	HeaderQueueName    string `yaml:"headerQueueName,omitempty" json:"headerQueueName,omitempty" toml:"headerQueueName,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
