@@ -1,0 +1,15 @@
+displayName: Http2Amqp transport plugin
+type: middleware
+
+import: github.com/killer-djon/traefik-http2amqp
+
+summary: 'Traefik plugin http2amqp represents transport to resend body from http to amqp'
+
+testData:
+  headerExchangeName: 'X-EXCHANGE-NAME'
+  headerQueueName: 'X-QUEUE-NAME'
+  host: 'localhost'
+  port: 5672
+  username: guest
+  password: guest
+  vhost: '/'
