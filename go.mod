@@ -1,4 +1,4 @@
-module github.com/traefik-http2amqp
+module github.com/killer-djon/traefik-http2amqp
 
 go 1.20
 
