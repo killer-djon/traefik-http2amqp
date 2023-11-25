@@ -18,13 +18,13 @@ const (
 
 // Config the plugin configuration.
 type Config struct {
-	Host              string `yaml:"host" json:"host"`
-	Port              int    `yaml:"port" json:"port"`
-	Vhost             string `yaml:"vhost" json:"vhost"`
-	Username          string `json:"username" yaml:"username"`
-	Password          string `yaml:"password" json:"password"`
-	HeaderExhangeName string `yaml:"headerExhangeName" json:"headerExhangeName"`
-	HeaderQueueName   string `yaml:"headerQueueName" json:"headerQueueName"`
+	Host               string `yaml:"host" json:"host"`
+	Port               int    `yaml:"port" json:"port"`
+	Vhost              string `yaml:"vhost" json:"vhost"`
+	Username           string `json:"username" yaml:"username"`
+	Password           string `yaml:"password" json:"password"`
+	HeaderExchangeName string `yaml:"headerExchangeName" json:"headerExchangeName"`
+	HeaderQueueName    string `yaml:"headerQueueName" json:"headerQueueName"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -55,7 +55,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		return nil, fmt.Errorf("[Http2Amqp] Password is empty must be set to connect to RabbitMQ")
 	}
 
-	if config.HeaderQueueName == "" || config.HeaderExhangeName == "" {
+	if config.HeaderQueueName == "" || config.HeaderExchangeName == "" {
 		return nil, fmt.Errorf("[Http2Amqp] you must set queueName and exchangeName to publish message into")
 	}
 
@@ -89,7 +89,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 
 // ServeHTTP method to skip at next request step
 func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if request.Header.Get(h.config.HeaderExhangeName) == "" {
+	if request.Header.Get(h.config.HeaderExchangeName) == "" {
 		writer.WriteHeader(400)
 		writer.Write([]byte("Error when read exchangeName and/or queueName from header, try to set them"))
 		return
@@ -105,7 +105,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 		body,
 		[]string{h.config.HeaderQueueName},
 		rabbitmq.WithPublishOptionsContentType("application/json"),
-		rabbitmq.WithPublishOptionsExchange(h.config.HeaderExhangeName),
+		rabbitmq.WithPublishOptionsExchange(h.config.HeaderExchangeName),
 		rabbitmq.WithPublishOptionsCorrelationID(uuid.NewV4().String()),
 		rabbitmq.WithPublishOptionsPersistentDelivery,
 		/*rabbitmq.WithPublishOptionsHeaders(rabbitmq.Table{
