@@ -3,7 +3,7 @@ package traefik_http2amqp
 import (
 	"context"
 	"fmt"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/wagslane/go-rabbitmq"
 	"io"
 	"log"
@@ -89,34 +89,37 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 
 // ServeHTTP method to skip at next request step
 func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if request.Header.Get(h.config.HeaderExchangeName) == "" {
-		writer.WriteHeader(400)
-		writer.Write([]byte("Error when read exchangeName and/or queueName from header, try to set them"))
-		return
+	if request.Method == "POST" {
+		if request.Header.Get(h.config.HeaderExchangeName) != "" && request.Header.Get(h.config.HeaderQueueName) != "" {
+			body, err := io.ReadAll(request.Body)
+			if err != nil {
+				writer.Write([]byte("Bad body request"))
+				return
+			}
+
+			fmt.Println("[Http2Amqp] published body to exchange", string(body))
+			err = h.publisher.Publish(
+				body,
+				[]string{h.config.HeaderQueueName},
+				rabbitmq.WithPublishOptionsContentType("application/json"),
+				rabbitmq.WithPublishOptionsExchange(h.config.HeaderExchangeName),
+				rabbitmq.WithPublishOptionsCorrelationID(uuid.NewV4().String()),
+				rabbitmq.WithPublishOptionsPersistentDelivery,
+				/*rabbitmq.WithPublishOptionsHeaders(rabbitmq.Table{
+
+				})*/
+			)
+
+			if err != nil {
+				log.Println(err)
+			}
+
+			fmt.Println("[Http2Amqp] body was published")
+		}
+
+		fmt.Println("[Http2Amqp] Method is not a post")
 	}
-	body, err := io.ReadAll(request.Body)
-	if err != nil {
-		writer.Write([]byte("Bad body request"))
-		return
-	}
 
-	fmt.Println("[Http2Amqp] published body to exchange", string(body))
-	err = h.publisher.Publish(
-		body,
-		[]string{h.config.HeaderQueueName},
-		rabbitmq.WithPublishOptionsContentType("application/json"),
-		rabbitmq.WithPublishOptionsExchange(h.config.HeaderExchangeName),
-		rabbitmq.WithPublishOptionsCorrelationID(uuid.NewV4().String()),
-		rabbitmq.WithPublishOptionsPersistentDelivery,
-		/*rabbitmq.WithPublishOptionsHeaders(rabbitmq.Table{
-
-		})*/
-	)
-
-	if err != nil {
-		log.Println(err)
-	}
-
-	fmt.Println("[Http2Amqp] body was published")
+	fmt.Println("[Http2Amqp] Skip publishing to rabbit, its simple request")
 	h.next.ServeHTTP(writer, request)
 }
