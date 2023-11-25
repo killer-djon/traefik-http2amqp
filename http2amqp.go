@@ -3,7 +3,7 @@ package traefik_http2amqp
 import (
 	"context"
 	"fmt"
-	rmq "github.com/rabbitmq/amqp091-go"
+	rmq "github.com/killer-djon/rabbitmq-go"
 	uuid "github.com/satori/go.uuid"
 	"io"
 	"net/http"
