@@ -28,7 +28,7 @@ type Config struct {
 	HeaderExchangeName  string `yaml:"headerExchangeName,omitempty" json:"headerExchangeName,omitempty" toml:"headerExchangeName,omitempty"`
 	HeaderQueueName     string `yaml:"headerQueueName,omitempty" json:"headerQueueName,omitempty" toml:"headerQueueName,omitempty"`
 	HeaderExchangeType  string `yaml:"headerExchangeType,omitempty" json:"headerExchangeType,omitempty" toml:"headerExchangeType,omitempty"`
-	HeaderCorrelationId string `yaml:"correlationId,omitempty" json:"headerCorrelationId,omitempty" toml:"headerCorrelationId,omitempty"`
+	HeaderCorrelationId string `yaml:"headerCorrelationId,omitempty" json:"headerCorrelationId,omitempty" toml:"headerCorrelationId,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -174,7 +174,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 			if request.Header.Get(h.config.HeaderCorrelationId) != "" {
 				correlationId = request.Header.Get(h.config.HeaderCorrelationId)
 			}
-			
+
 			msg := rmq.Publishing{
 				Headers: rmq.Table{
 					"Correlation-id": correlationId,
