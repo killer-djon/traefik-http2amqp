@@ -11,35 +11,38 @@ import (
 )
 
 const (
-	HOST          = "localhost"
-	PORT          = 5672
-	VHOST         = "/"
-	EXCHANGE_TYPE = "direct"
+	HOST                = "localhost"
+	PORT                = 5672
+	VHOST               = "/"
+	EXCHANGE_TYPE       = "direct"
+	DEFAULT_HEADER_NAME = "correlation-id"
 )
 
 // Config the plugin configuration.
 type Config struct {
-	Host               string `yaml:"host,omitempty" json:"host,omitempty" toml:"host,omitempty"`
-	Port               int    `yaml:"port,omitempty" json:"port,omitempty" toml:"port,omitempty"`
-	Vhost              string `yaml:"vhost,omitempty" json:"vhost,omitempty" toml:"vhost,omitempty"`
-	Username           string `json:"username,omitempty" yaml:"username,omitempty" toml:"username,omitempty"`
-	Password           string `yaml:"password,omitempty" json:"password,omitempty" toml:"password,omitempty"`
-	HeaderExchangeName string `yaml:"headerExchangeName,omitempty" json:"headerExchangeName,omitempty" toml:"headerExchangeName,omitempty"`
-	HeaderQueueName    string `yaml:"headerQueueName,omitempty" json:"headerQueueName,omitempty" toml:"headerQueueName,omitempty"`
-	HeaderExchangeType string `yaml:"headerExchangeType,omitempty" json:"headerExchangeType,omitempty" toml:"headerExchangeType,omitempty"`
+	Host                string `yaml:"host,omitempty" json:"host,omitempty" toml:"host,omitempty"`
+	Port                int    `yaml:"port,omitempty" json:"port,omitempty" toml:"port,omitempty"`
+	Vhost               string `yaml:"vhost,omitempty" json:"vhost,omitempty" toml:"vhost,omitempty"`
+	Username            string `json:"username,omitempty" yaml:"username,omitempty" toml:"username,omitempty"`
+	Password            string `yaml:"password,omitempty" json:"password,omitempty" toml:"password,omitempty"`
+	HeaderExchangeName  string `yaml:"headerExchangeName,omitempty" json:"headerExchangeName,omitempty" toml:"headerExchangeName,omitempty"`
+	HeaderQueueName     string `yaml:"headerQueueName,omitempty" json:"headerQueueName,omitempty" toml:"headerQueueName,omitempty"`
+	HeaderExchangeType  string `yaml:"headerExchangeType,omitempty" json:"headerExchangeType,omitempty" toml:"headerExchangeType,omitempty"`
+	HeaderCorrelationId string `yaml:"correlationId,omitempty" json:"headerCorrelationId,omitempty" toml:"headerCorrelationId,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		Host:               HOST,
-		Port:               PORT,
-		Vhost:              VHOST,
-		Username:           "",
-		Password:           "",
-		HeaderExchangeName: "",
-		HeaderQueueName:    "",
-		HeaderExchangeType: EXCHANGE_TYPE,
+		Host:                HOST,
+		Port:                PORT,
+		Vhost:               VHOST,
+		Username:            "",
+		Password:            "",
+		HeaderExchangeName:  "",
+		HeaderQueueName:     "",
+		HeaderExchangeType:  EXCHANGE_TYPE,
+		HeaderCorrelationId: DEFAULT_HEADER_NAME,
 	}
 }
 
@@ -62,6 +65,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if config.HeaderQueueName == "" || config.HeaderExchangeName == "" {
 		return nil, fmt.Errorf("[Http2Amqp] you must set queueName and exchangeName to publish message into")
 	}
+
 	return &Http2Amqp{
 		next:   next,
 		name:   name,
@@ -71,7 +75,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 
 // ServeHTTP method to skip at next request step
 func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if request.Method == http.MethodPost {
+	if request.Method == http.MethodPost || request.Method == http.MethodPut {
 		if request.Header.Get(h.config.HeaderExchangeName) != "" && request.Header.Get(h.config.HeaderQueueName) != "" {
 			connection, err := rmq.DialConfig(
 				fmt.Sprintf("amqp://%s:%s@%s:%d%s", h.config.Username, h.config.Password, h.config.Host, h.config.Port, h.config.Vhost),
@@ -110,7 +114,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 				writer.Write([]byte("Bad body request to transport amqp"))
 				return
 			}
-			
+
 			err = channel.ExchangeDeclare(
 				exchangeName,
 				exchangeType,
@@ -120,6 +124,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 				false,
 				nil,
 			)
+
 			if err != nil {
 				fmt.Printf(
 					"[Http2Amqp] error occurred for exchange type declaration, type: %s, name: %s",
@@ -140,6 +145,7 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 				false,
 				nil,
 			)
+
 			if err != nil {
 				fmt.Printf(
 					"[Http2Amqp] error occurred for queue declaration, name: %s",
@@ -163,8 +169,12 @@ func (h *Http2Amqp) ServeHTTP(writer http.ResponseWriter, request *http.Request)
 				writer.Write([]byte("[Http2Amqp] error occurred for queue declaration"))
 				return
 			}
-			correlationId := uuid.NewV4().String()
 
+			correlationId := uuid.NewV4().String()
+			if request.Header.Get(h.config.HeaderCorrelationId) != "" {
+				correlationId = request.Header.Get(h.config.HeaderCorrelationId)
+			}
+			
 			msg := rmq.Publishing{
 				Headers: rmq.Table{
 					"Correlation-id": correlationId,
